@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# tmux-wait: Poll a tmux pane until its content changes or a pattern appears.
+#
+# Usage:
+#   tmux-wait <pane> [timeout]                    # wait for any change
+#   tmux-wait <pane> --pattern <pat> [timeout]    # wait for pattern
+#   tmux-wait <pane> -p <pat> [timeout]           # short form
+#
+# Captures the pane (trying alternate screen first) before polling begins,
+# then polls every 0.5s until the content differs or the pattern matches.
+# Prints the final pane capture on success. Exits 1 on timeout.
+
+set -euo pipefail
+
+die() { echo "tmux-wait: $*" >&2; exit 2; }
+
+capture() {
+  tmux capture-pane -t "$1" -p -a -q 2>/dev/null || tmux capture-pane -t "$1" -p
+}
+
+# --- parse args ---
+PANE=""
+PATTERN=""
+TIMEOUT=30
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -p|--pattern)
+      [[ $# -lt 2 ]] && die "missing argument for $1"
+      PATTERN="$2"; shift 2 ;;
+    -*)
+      die "unknown flag: $1" ;;
+    *)
+      if [[ -z "$PANE" ]]; then
+        PANE="$1"
+      else
+        TIMEOUT="$1"
+      fi
+      shift ;;
+  esac
+done
+
+[[ -z "$PANE" ]] && die "usage: tmux-wait <pane> [-p pattern] [timeout]"
+
+# --- snapshot before state ---
+BEFORE=$(capture "$PANE")
+
+# --- poll ---
+INTERVAL=0.5
+ITERATIONS=$(awk "BEGIN { printf \"%d\", $TIMEOUT / $INTERVAL }")
+
+for (( i=1; i<=ITERATIONS; i++ )); do
+  sleep "$INTERVAL"
+  AFTER=$(capture "$PANE")
+
+  if [[ -n "$PATTERN" ]]; then
+    if echo "$AFTER" | grep -q "$PATTERN"; then
+      echo "$AFTER"
+      exit 0
+    fi
+  else
+    if [[ "$BEFORE" != "$AFTER" ]]; then
+      echo "$AFTER"
+      exit 0
+    fi
+  fi
+done
+
+# timed out — print what we have and exit non-zero
+AFTER=$(capture "$PANE")
+echo "$AFTER"
+exit 1
