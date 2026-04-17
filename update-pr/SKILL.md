@@ -2,6 +2,7 @@
 name: update-pr
 description: Update the current PR description based on the latest changes in context.
 allowed-tools: Read, Bash, Glob, Grep, Edit
+disable-model-invocation: true
 ---
 
 Update the current PR description to reflect the latest changes made in this

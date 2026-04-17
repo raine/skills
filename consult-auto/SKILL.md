@@ -100,7 +100,7 @@ Be specific about file paths. Focus on the approach, not boilerplate.
 
 ### If no flag (default): Both Gemini and Codex in parallel
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full planning prompt and file list so it can make the MCP call independently.
+Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full planning prompt and file list so it can make the MCP call independently.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the planning prompt, `files`: [array of relevant source files]
@@ -255,7 +255,7 @@ Use the Task tool with `subagent_type: "general-purpose"` and instruct it to run
 
 ### If no flag (default): Both Gemini and Codex in parallel
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full review prompt, git_diff details, and thread_id.
+Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full review prompt, git_diff details, and thread_id.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the final review prompt, `git_diff`: `{ "files": [list of changed files], "base_ref": "HEAD~N" }`, `thread_id`: `gemini_thread_id` from Phase 2/3.5

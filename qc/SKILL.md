@@ -2,6 +2,7 @@
 name: qc
 description: Stage all changes and commit directly without checking status or diff.
 allowed-tools: Bash
+disable-model-invocation: true
 ---
 
 Stage all changes and commit directly. Do not run git status, git diff, or git

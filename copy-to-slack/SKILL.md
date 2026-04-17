@@ -2,6 +2,7 @@
 name: copy-to-slack
 description: Convert markdown to Slack-ready rich text and copy to clipboard.
 allowed-tools: Bash, Read
+disable-model-invocation: true
 ---
 
 Convert a markdown file to rich text and copy it to the clipboard so it can be

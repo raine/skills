@@ -1,6 +1,7 @@
 ---
 name: collab-vs
 description: Claude brainstorms with an opponent LLM (Gemini or Codex) in alternating turns, building on each other's ideas. Synthesizes the best ideas into a plan.
+disable-model-invocation: true
 ---
 
 Brainstorm collaboratively with an opponent LLM, building on each other's ideas in alternating turns, then synthesize the best ideas into a plan.

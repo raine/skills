@@ -67,7 +67,7 @@ Provide specific, actionable feedback. Be concise.
 
 ### If no flag (default): Both Gemini and Codex in parallel
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full review prompt, git_diff details, and file list so it can make the MCP call independently.
+Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full review prompt, git_diff details, and file list so it can make the MCP call independently.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the review prompt, `task_mode: "review"`, `git_diff`: `{"files": [<changed files>], "base_ref": "HEAD"}`, `files`: [array of relevant source files]

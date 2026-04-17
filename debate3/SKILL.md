@@ -1,9 +1,9 @@
 ---
-name: debate
-description: LLMs propose and critique approaches, agent moderates the debate and synthesizes the best solution, then implements.
+name: debate3
+description: Three-way LLM debate (Gemini, Codex, MiniMax) — each proposes, critiques the other two, then agent moderates and implements.
 ---
 
-Have Gemini and Codex debate the best approach, then synthesize and implement.
+Three-way debate between Gemini, Codex, and MiniMax. Each proposes independently, critiques the other two, then the agent moderates and implements.
 
 ## Configuration
 
@@ -40,7 +40,7 @@ Strip all flags from arguments to get the task description.
 
 ## Phase 2: Opening Arguments
 
-Have both LLMs propose their approach independently (in parallel).
+Have all three LLMs propose their approach independently (in parallel).
 
 **Opening prompt:**
 ```
@@ -61,7 +61,7 @@ Propose your implementation approach:
 Be specific and opinionated. Defend your choices.
 ```
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full opening prompt text and file list so it can make the MCP call independently.
+Spawn ALL THREE as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full opening prompt text and file list so it can make the MCP call independently.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the opening prompt, `files`: [array of relevant source files]
@@ -71,50 +71,66 @@ Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose
 - Call `mcp__consult-llm__consult_llm` with `model: "openai"`, `prompt`: the opening prompt, `files`: [array of relevant source files]
 - Return the COMPLETE response including any `[thread_id:xxx]` prefix
 
-**Extract thread IDs:** Save `gemini_thread_id` and `codex_thread_id` from the `[thread_id:xxx]` prefixes in the subagent responses.
+**MiniMax subagent** — prompt must include:
+- Call `mcp__consult-llm__consult_llm` with `model: "minimax"`, `prompt`: the opening prompt, `files`: [array of relevant source files]
+- Return the COMPLETE response including any `[thread_id:xxx]` prefix
+
+**Extract thread IDs:** Save `gemini_thread_id`, `codex_thread_id`, and `minimax_thread_id` from the `[thread_id:xxx]` prefixes in the subagent responses.
 
 ## Phase 3: Rebuttals
 
-Have each LLM critique the other's approach (in parallel). Use `thread_id` to continue each LLM's conversation — they already have full context of the task and their own opening argument, so you only need to send the opponent's argument.
+Have each LLM critique the other two approaches (in parallel). Use `thread_id` to continue each LLM's conversation — they already have full context of the task and their own opening argument, so you only need to send the opponents' arguments.
 
-**Rebuttal prompt (same for both, just swap the opponent's argument):**
+**Rebuttal prompt (same structure for all three, just swap the opponents' arguments):**
 ```
-Your opponent proposed this alternative approach:
-[Opponent's opening argument]
+Two other LLMs proposed alternative approaches:
+
+**Opponent A:**
+[First opponent's opening argument]
+
+**Opponent B:**
+[Second opponent's opening argument]
 
 Provide a rebuttal:
-1. **Critique**: What are the weaknesses in your opponent's approach?
-2. **Defense**: Address any weaknesses in your own approach
-3. **Concessions**: Are there any good ideas from your opponent worth adopting?
-4. **Final position**: State your refined recommendation
+1. **Critique A**: What are the weaknesses in Opponent A's approach?
+2. **Critique B**: What are the weaknesses in Opponent B's approach?
+3. **Defense**: Address any weaknesses in your own approach
+4. **Concessions**: Are there any good ideas from either opponent worth adopting?
+5. **Final position**: State your refined recommendation
 
 Be constructive but thorough in your critique.
 ```
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full rebuttal prompt text and thread_id.
+Spawn ALL THREE as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full rebuttal prompt text and thread_id.
 
 **Gemini subagent** — prompt must include:
-- Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: rebuttal prompt with Codex's opening argument as the opponent, `thread_id`: `gemini_thread_id` from Phase 2
+- Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: rebuttal prompt with Codex as Opponent A and MiniMax as Opponent B, `thread_id`: `gemini_thread_id` from Phase 2
 - Return the COMPLETE response including any `[thread_id:xxx]` prefix
 
 **Codex subagent** — prompt must include:
-- Call `mcp__consult-llm__consult_llm` with `model: "openai"`, `prompt`: rebuttal prompt with Gemini's opening argument as the opponent, `thread_id`: `codex_thread_id` from Phase 2
+- Call `mcp__consult-llm__consult_llm` with `model: "openai"`, `prompt`: rebuttal prompt with Gemini as Opponent A and MiniMax as Opponent B, `thread_id`: `codex_thread_id` from Phase 2
+- Return the COMPLETE response including any `[thread_id:xxx]` prefix
+
+**MiniMax subagent** — prompt must include:
+- Call `mcp__consult-llm__consult_llm` with `model: "minimax"`, `prompt`: rebuttal prompt with Gemini as Opponent A and Codex as Opponent B, `thread_id`: `minimax_thread_id` from Phase 2
 - Return the COMPLETE response including any `[thread_id:xxx]` prefix
 
 ## Phase 4: Moderator's Verdict
 
-As the moderator, analyze the debate and synthesize the best approach:
+As the moderator, analyze the three-way debate and synthesize the best approach:
 
 1. **Score the arguments**:
-   - Which approach is simpler?
+   - Which approach is simplest?
    - Which approach better fits existing patterns?
    - Which critiques were valid?
    - What concessions were made?
+   - Where did two or more LLMs agree against the third?
 
-2. **Identify consensus**: Where did both LLMs agree?
+2. **Identify consensus**: Where did all three (or two of three) agree?
 
 3. **Resolve disagreements**: For each point of contention:
-   - Evaluate the arguments from both sides
+   - Evaluate the arguments from all sides
+   - Two-against-one agreement is a strong signal but not automatic — evaluate the dissenter's reasoning
    - Pick the stronger position or find a middle ground
    - Prefer simpler solutions when arguments are equally strong
 
@@ -129,13 +145,16 @@ As the moderator, analyze the debate and synthesize the best approach:
 
 **Gemini's position:** [1-2 sentence summary]
 **Codex's position:** [1-2 sentence summary]
+**MiniMax's position:** [1-2 sentence summary]
 
-**Points of agreement:**
+**Points of agreement (all three):**
 - [Consensus point 1]
-- [Consensus point 2]
 
-**Resolved disagreements:**
-- [Issue]: Gemini said X, Codex said Y → **Verdict:** [Your decision and why]
+**Majority agreements (2 of 3):**
+- [Point]: [Who agreed] vs [Who dissented] → **Verdict:** [decision]
+
+**Three-way disagreements:**
+- [Issue]: Gemini said X, Codex said Y, MiniMax said Z → **Verdict:** [Your decision and why]
 
 **Verdict:** [2-3 sentences on the final synthesized approach]
 
@@ -189,7 +208,7 @@ Implementation rules:
 
 **If `--skip-final`:** Skip to Phase 7 (Summary).
 
-After implementation, have both LLMs review the result (in parallel). Use `thread_id` to continue each LLM's conversation — they already have full context of the task and the debate, so you only need to send the review prompt and the diff.
+After implementation, have all three LLMs review the result (in parallel). Use `thread_id` to continue each LLM's conversation — they already have full context of the task and the debate, so you only need to send the review prompt and the diff.
 
 **Final review prompt:**
 ```
@@ -202,7 +221,7 @@ The implementation is complete. Review the changes for bugs, issues, or improvem
 Be concise. Only flag issues worth fixing.
 ```
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full review prompt, thread_id, and git_diff details.
+Spawn ALL THREE as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full review prompt, thread_id, and git_diff details.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the final review prompt, `thread_id`: `gemini_thread_id` from Phase 2, `git_diff`: `{ "files": [list of changed files], "base_ref": "HEAD~N" }`
@@ -212,7 +231,11 @@ Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose
 - Call `mcp__consult-llm__consult_llm` with `model: "openai"`, `prompt`: the final review prompt, `thread_id`: `codex_thread_id` from Phase 2, `git_diff`: `{ "files": [list of changed files], "base_ref": "HEAD~N" }`
 - Return the COMPLETE response including any `[thread_id:xxx]` prefix
 
-**Apply fixes** if both reviewers identify the same issue, or if one raises a clearly valid concern:
+**MiniMax subagent** — prompt must include:
+- Call `mcp__consult-llm__consult_llm` with `model: "minimax"`, `prompt`: the final review prompt, `thread_id`: `minimax_thread_id` from Phase 2, `git_diff`: `{ "files": [list of changed files], "base_ref": "HEAD~N" }`
+- Return the COMPLETE response including any `[thread_id:xxx]` prefix
+
+**Apply fixes** if two or more reviewers identify the same issue, or if one raises a clearly valid concern:
 - Fix bugs and edge cases
 - Commit each fix separately with clear messages
 
@@ -230,6 +253,7 @@ Present a final summary to the user:
 **Debate outcome:**
 - Gemini advocated: [key position]
 - Codex advocated: [key position]
+- MiniMax advocated: [key position]
 - Final verdict: [synthesized approach]
 
 **Key decisions from debate:**

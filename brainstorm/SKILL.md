@@ -1,6 +1,7 @@
 ---
 name: brainstorm
 description: Turn an idea into a concrete design through structured dialogue.
+disable-model-invocation: true
 ---
 
 Turn an idea into a concrete design through structured dialogue.

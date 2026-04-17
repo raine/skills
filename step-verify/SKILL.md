@@ -1,27 +1,23 @@
 ---
-name: verify
-description: Manually verify review findings one by one by running code, writing adhoc scripts, and comparing actual behavior instead of implementing blindly.
+name: step-verify
+description: Verify review findings one by one, pausing after each to discuss with the user before continuing.
 allowed-tools: Bash, Glob, Grep, Read, Write, Edit, Agent, AskUserQuestion
 disable-model-invocation: true
 ---
 
-Verify review findings from the current conversation by actually testing each one.
+Verify review findings from the current conversation step by step, pausing after each for discussion.
 
 **Arguments:** `$ARGUMENTS`
 
-## Context
-
-The conversation contains review findings (e.g. from `/review`, `/consult`, or a manual code review). These are claims about bugs, behavioral differences, missing features, or other issues. Your job is to **verify each finding empirically** before anyone implements fixes.
-
 ## Phase 1: Extract Findings
 
-1. Look at the conversation context for a list of review findings, issues, or behavioral differences
+1. Look at the conversation context for review findings, issues, or behavioral differences
 2. If `$ARGUMENTS` specifies a subset (e.g. "items 1-5", "critical only"), filter accordingly
 3. Number each finding for tracking
 
 ## Phase 2: Verify Each Finding
 
-**Mode:** If `$ARGUMENTS` contains `--parallel`, verify all findings concurrently using parallel Agent calls (one agent per finding). Otherwise, go through findings **one at a time**, in order.
+Go through findings **one at a time**, in order.
 
 For each finding:
 
@@ -38,12 +34,12 @@ Choose the most appropriate verification method:
 - **Write an adhoc script**: When the claim involves runtime behavior (env var handling, string formatting, edge cases), write a small throwaway script that isolates and tests the specific behavior
   - Put scripts in `/tmp/verify-*.{sh,ts,py,rs}` or similar
   - Keep them minimal — test exactly the claim, nothing more
-- **Check documentation**: When the claim is about library behavior (e.g. "SDK provides automatic retries"), verify against actual docs or source
+- **Check documentation**: When the claim is about library behavior, verify against actual docs or source
 - **Compare outputs**: When the claim is about differing output formats, run both implementations and diff
 
 ### 2c. Report Verdict
 
-For each finding, report:
+Show progress like **"Finding 3/10:"** and report:
 
 - **CONFIRMED**: The finding is accurate and is a real issue
 - **NOT AN ISSUE**: The finding is technically correct but doesn't matter in practice (explain why)
@@ -52,9 +48,11 @@ For each finding, report:
 
 Show the evidence (command output, code snippets, script results) that supports your verdict.
 
-### 2d. Continue
+### 2d. Pause for Discussion
 
-After reporting the verdict for one finding, immediately proceed to the next. Do NOT ask the user between findings — verify all of them in one pass.
+Use `AskUserQuestion` to let the user respond before continuing. Offer context-appropriate options (e.g. "Continue", "Fix this now", "Skip remaining", "Show more detail").
+
+Wait for the user's response. If they want to fix the issue now, do so before moving on. Then proceed to the next finding.
 
 ## Phase 3: Summary
 
@@ -64,7 +62,7 @@ After all findings are verified, present a summary table:
 # Verified  | # Not an Issue  | # Incorrect  | # Unable to Verify
 ```
 
-List the confirmed issues and ask the user which ones they want to fix.
+List the confirmed issues and ask which ones the user wants to fix.
 
 ## Guidelines
 
@@ -73,4 +71,3 @@ List the confirmed issues and ask the user which ones they want to fix.
 - Clean up temp scripts when done
 - If a finding is ambiguous, err on the side of testing it
 - When comparing two implementations, test BOTH — don't assume one is correct
-- With `--parallel`, launch one Agent per finding simultaneously — each agent verifies independently and returns its verdict. Collect all results before producing the summary.

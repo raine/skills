@@ -1,23 +1,11 @@
 ---
-name: write-plan
-description: Create an implementation plan for a multi-step task. Optionally review with external LLMs.
-disable-model-invocation: true
+name: write-plan-consult
+description: Create an implementation plan by brainstorming with Gemini and Codex, synthesizing the best ideas, then getting their review.
 ---
 
-Create an implementation plan for a multi-step task.
+Create an implementation plan by consulting external LLMs throughout the process.
 
 User request: $ARGUMENTS
-
-## Flags
-
-Check arguments for optional review flags:
-- `--review` → review with both Gemini and Codex (parallel)
-- `--gemini` → review with Gemini only
-- `--codex` → review with Codex only
-- `--claude` → review with a Claude subagent
-- No flag → skip review (default)
-
-Strip flags from arguments to get the task description.
 
 ## Phase 1: Understand the Task
 
@@ -34,10 +22,52 @@ Rules for questions:
 - Keep option labels concise (1-5 words), use descriptions for details
 - If you realize you misunderstood something, acknowledge it and course-correct
 
-## Phase 2: Write the Plan
+## Phase 2: Brainstorm with External LLMs
 
-Create a plan document with bite-sized tasks. Each task should be a small,
-focused unit of work.
+Once you understand the task, consult Gemini and Codex **in parallel** for
+approaches and ideas.
+
+Spawn TWO parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`,
+`model: "sonnet"`). Each subagent makes the MCP call and returns the full
+response.
+
+**Gemini subagent:**
+
+Call `mcp__consult-llm__consult_llm` with:
+- `model`: "gemini"
+- `prompt`: The brainstorm prompt below
+- `files`: Array of relevant source files for context
+
+**Codex subagent:**
+
+Call `mcp__consult-llm__consult_llm` with:
+- `model`: "openai"
+- `prompt`: The brainstorm prompt below
+- `files`: Array of relevant source files for context
+
+**Brainstorm prompt:**
+
+```
+I'm planning the following task:
+
+[Task description with full context]
+
+Relevant files and their roles:
+[List the key files and what they do]
+
+Propose 2-3 approaches for implementing this. For each approach:
+- Describe the strategy and trade-offs
+- List the files to create/modify with exact paths
+- Include concrete code examples showing the key parts (not pseudocode)
+- Note any edge cases or gotchas
+
+Be specific and opinionated. Recommend your preferred approach and explain why.
+```
+
+## Phase 3: Synthesize and Write the Plan
+
+Review both LLM responses. Pick the best ideas from each and combine them with
+your own analysis into a single implementation plan.
 
 ### Plan Structure
 
@@ -46,7 +76,9 @@ focused unit of work.
 
 **Goal:** [One sentence describing what this builds]
 
-**Approach:** [2-3 sentences about the approach]
+**Approach:** [2-3 sentences about the chosen approach and why]
+
+**Sources:** [Brief note on which ideas came from Gemini vs Codex vs your own analysis]
 
 ---
 
@@ -83,64 +115,39 @@ focused unit of work.
 - **Assume no context** - write as if the implementer knows nothing about this
   codebase
 - **DRY, YAGNI** - only what's needed, no speculative features
+- **Credit sources** - note when an idea came from a specific LLM's suggestion
 
-## Phase 3: Save
+## Phase 4: Save
 
 Save the plan:
 
 - Write to a markdown file at `history/<date>-plan-<feature-name>.md` (e.g. `history/2026-02-15-plan-user-auth.md`)
 - Include context, decisions made, and rationale
 
-## Phase 4: Review (if flag provided)
+## Phase 5: Review
 
-**Skip this phase if no review flag was provided.**
+Get Gemini and Codex to review the synthesized plan, again **in parallel**.
 
-Based on the flag, get external feedback on the plan:
+Spawn TWO parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`,
+`model: "sonnet"`). Each subagent makes the MCP call and returns the full
+response.
 
-### If `--gemini`: Gemini only
+**Gemini subagent:**
 
 Call `mcp__consult-llm__consult_llm` with:
 - `model`: "gemini"
-- `prompt`: Review prompt below
+- `prompt`: The review prompt below
 - `files`: Array including the plan file and relevant source files
 
-### If `--codex`: Codex only
+**Codex subagent:**
 
 Call `mcp__consult-llm__consult_llm` with:
 - `model`: "openai"
-- `prompt`: Review prompt below
+- `prompt`: The review prompt below
 - `files`: Array including the plan file and relevant source files
 
-### If `--claude`: Claude subagent
-
-Use the Task tool with `subagent_type: "general-purpose"` and a prompt like:
-```
-Review this implementation plan. The plan is in: [plan file path]
-
-Consider:
-- Are the tasks correctly ordered and sized?
-- Are there any missing steps or edge cases?
-- Are the file paths and code snippets accurate?
-- Any architectural concerns or better approaches?
-
-Read the plan file and relevant source files, then provide specific, actionable feedback. Be concise.
-```
-
-### If `--review`: Both Gemini and Codex in parallel
-
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full review prompt and file list so it can make the MCP call independently.
-
-**Gemini subagent** — prompt must include:
-- Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the review prompt, `files`: [array including the plan file and relevant source files]
-- Return the COMPLETE response
-
-**Codex subagent** — prompt must include:
-- Call `mcp__consult-llm__consult_llm` with `model: "openai"`, `prompt`: the review prompt, `files`: [array including the plan file and relevant source files]
-- Return the COMPLETE response
-
----
-
 **Review prompt:**
+
 ```
 Review this implementation plan. Consider:
 - Are the tasks correctly ordered and sized?
@@ -151,7 +158,8 @@ Review this implementation plan. Consider:
 Provide specific, actionable feedback. Be concise.
 ```
 
-After receiving feedback, present it to the user and ask if they want to revise the plan.
+After receiving feedback, present it to the user and ask if they want to revise
+the plan.
 
 ## Principles
 
@@ -160,3 +168,4 @@ After receiving feedback, present it to the user and ask if they want to revise 
 - **YAGNI** - ruthlessly cut unnecessary features
 - **Validate incrementally** - check understanding at each step
 - **Concrete over abstract** - exact paths, actual code, specific commands
+- **Best of all worlds** - synthesize the strongest ideas from each LLM

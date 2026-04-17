@@ -2,6 +2,7 @@
 name: try-all
 description: Delegate each of the proposed options to a separate AI agent in its own git worktree.
 allowed-tools: Bash, Write
+disable-model-invocation: true
 ---
 
 Delegate each of the proposed options to a separate AI agent in its own git

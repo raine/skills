@@ -116,7 +116,7 @@ Read the plan file and relevant source files, then provide specific, actionable 
 
 ### If no flag (default): Both Gemini and Codex in parallel
 
-Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). Each subagent prompt must include the full review prompt and file list so it can make the MCP call independently.
+Spawn BOTH as parallel subagents (`Agent` tool, `subagent_type: "general-purpose"`, `model: "sonnet"`). NEVER run subagents in the background — always run them in the foreground so you can process their results immediately. Each subagent prompt must include the full review prompt and file list so it can make the MCP call independently.
 
 **Gemini subagent** — prompt must include:
 - Call `mcp__consult-llm__consult_llm` with `model: "gemini"`, `prompt`: the review prompt, `files`: [array including the plan file and relevant source files]
